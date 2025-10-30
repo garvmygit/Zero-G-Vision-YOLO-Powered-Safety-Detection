@@ -1,0 +1,17 @@
+# Safety Equipment Detection Dataset Configuration
+# Dataset for detecting safety equipment like fire extinguishers, oxygen cylinders, etc.
+
+# Dataset paths
+path: ../../hackathon2_train_3/train_3/train3  # dataset root dir
+train: images  # train images (relative to 'path')
+val: ../val3/images  # val images (relative to 'path')
+
+# Classes
+nc: 7  # number of classes
+names: ['FireExtinguisher', 'FirstAidBox', 'SafetySwitchPanel', 'EmergencyPhone', 'FireAlarm', 'OxygenCylinder', 'Person']  # class names
+
+# Additional configuration
+imgsz: 640  # image size for training
+batch: 16   # batch size
+epochs: 30  # number of epochs
+

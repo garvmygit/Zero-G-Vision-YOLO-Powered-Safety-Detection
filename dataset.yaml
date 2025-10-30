@@ -1,0 +1,12 @@
+names:
+  0: OxygenTank
+  1: NitrogenTank
+  2: FirstAidBox
+  3: FireAlarm
+  4: SafetySwitchPanel
+  5: EmergencyPhone
+  6: FireExtinguisher
+nc: 7
+path: .
+train: train/images
+val: val/images

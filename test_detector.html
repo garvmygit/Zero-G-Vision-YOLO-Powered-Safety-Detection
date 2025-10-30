@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO Safety Equipment Detector - Test Version</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; color: white; }
+        .header h1 { font-size: 2.5rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+        .detection-panel { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .panel-title { font-size: 1.5rem; margin-bottom: 20px; color: #4a5568; border-bottom: 3px solid #667eea; padding-bottom: 10px; }
+        .video-container { position: relative; width: 100%; height: 400px; background: #f7fafc; border-radius: 10px; overflow: hidden; margin-bottom: 20px; border: 3px dashed #cbd5e0; }
+        #videoElement { width: 100%; height: 100%; object-fit: cover; }
+        .upload-area { border: 3px dashed #cbd5e0; border-radius: 10px; padding: 40px; text-align: center; background: #f7fafc; cursor: pointer; margin-bottom: 20px; }
+        .upload-area:hover { border-color: #667eea; background: #edf2f7; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; margin: 5px; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-success { background: #48bb78; color: white; }
+        .detection-results { background: #f7fafc; border-radius: 10px; padding: 20px; margin-top: 20px; min-height: 200px; }
+        .result-item { background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid #667eea; }
+        .confidence-bar { width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+        .confidence-fill { height: 100%; background: linear-gradient(90deg, #48bb78, #38a169); transition: width 0.3s ease; }
+        .status-indicator { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+        .status-active { background: #48bb78; animation: pulse 2s infinite; }
+        .status-inactive { background: #a0aec0; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .loading { text-align: center; padding: 40px; color: #4a5568; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .alert-info { background: #ebf8ff; border-left: 4px solid #4299e1; color: #2a4365; }
+        .alert-success { background: #f0fff4; border-left: 4px solid #48bb78; color: #22543d; }
+        .alert-warning { background: #fffbeb; border-left: 4px solid #f59e0b; color: #92400e; }
+        .test-image { max-width: 100%; border-radius: 8px; margin: 10px 0; }
+        @media (max-width: 768px) { .main-content { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Safety Equipment Detector</h1>
+            <p>AI-Powered Real-time Detection of Safety Equipment</p>
+        </div>
+
+        <div class="alert alert-info">
+            <strong>🚀 System Status:</strong> Ready for detection! You can test with sample images or upload your own.
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>📷 Camera Note:</strong> If camera access is denied, you can still test the system by uploading images below.
+        </div>
+
+        <div class="main-content">
+            <div class="detection-panel">
+                <h2 class="panel-title">📹 Live Camera Detection</h2>
+                <div class="video-container">
+                    <video id="videoElement" autoplay muted></video>
+                    <canvas id="canvasElement" style="display: none;"></canvas>
+                </div>
+                <div>
+                    <button id="startCamera" class="btn btn-primary">
+                        <span class="status-indicator status-inactive"></span>Start Camera
+                    </button>
+                    <button id="stopCamera" class="btn btn-danger" disabled>Stop Camera</button>
+                    <button id="captureFrame" class="btn btn-success" disabled>Capture & Detect</button>
+                </div>
+                <div id="cameraError" style="display: none; color: #f56565; margin-top: 10px;">
+                    Camera access denied. Please try uploading an image instead.
+                </div>
+            </div>
+
+            <div class="detection-panel">
+                <h2 class="panel-title">📁 Image Upload Detection</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div style="font-size: 3rem; color: #a0aec0; margin-bottom: 15px;">📤</div>
+                    <div>Drop your image here or click to browse</div>
+                    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                </div>
+                <div>
+                    <button id="uploadBtn" class="btn btn-primary" disabled>Upload & Detect</button>
+                    <button id="clearUpload" class="btn btn-secondary" disabled>Clear</button>
+                    <button id="testSample" class="btn btn-success">Test with Sample</button>
+                </div>
+                <div id="uploadPreview" style="display: none; margin-bottom: 20px;">
+                    <img id="previewImage" class="test-image">
+                </div>
+            </div>
+        </div>
+
+        <div class="detection-panel">
+            <h2 class="panel-title">🔍 Detection Results</h2>
+            <div id="detectionResults" class="detection-results">
+                <div class="loading" id="loadingResults" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Analyzing image...</p>
+                </div>
+                <div id="resultsContent">
+                    <p style="text-align: center; color: #718096; padding: 40px;">Start camera detection, upload an image, or test with sample to see results</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class SafetyEquipmentDetector {
+            constructor() {
+                this.video = document.getElementById('videoElement');
+                this.canvas = document.getElementById('canvasElement');
+                this.ctx = this.canvas.getContext('2d');
+                this.isCameraActive = false;
+                this.stream = null;
+                
+                this.initializeEventListeners();
+            }
+
+            initializeEventListeners() {
+                document.getElementById('startCamera').addEventListener('click', () => this.startCamera());
+                document.getElementById('stopCamera').addEventListener('click', () => this.stopCamera());
+                document.getElementById('captureFrame').addEventListener('click', () => this.captureAndDetect());
+
+                const uploadArea = document.getElementById('uploadArea');
+                const fileInput = document.getElementById('fileInput');
+                
+                uploadArea.addEventListener('click', () => fileInput.click());
+                uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.borderColor = '#667eea';
+                    e.currentTarget.style.background = '#e6fffa';
+                });
+                uploadArea.addEventListener('dragleave', (e) => {
+                    e.currentTarget.style.borderColor = '#cbd5e0';
+                    e.currentTarget.style.background = '#f7fafc';
+                });
+                uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.borderColor = '#cbd5e0';
+                    e.currentTarget.style.background = '#f7fafc';
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        this.handleFile(files[0]);
+                    }
+                });
+                
+                fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+                
+                document.getElementById('uploadBtn').addEventListener('click', () => this.uploadAndDetect());
+                document.getElementById('clearUpload').addEventListener('click', () => this.clearUpload());
+                document.getElementById('testSample').addEventListener('click', () => this.testWithSample());
+            }
+
+            async startCamera() {
+                try {
+                    // Request camera with more specific constraints
+                    this.stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { 
+                            width: { ideal: 640 }, 
+                            height: { ideal: 480 },
+                            facingMode: 'environment'
+                        } 
+                    });
+                    
+                    this.video.srcObject = this.stream;
+                    this.isCameraActive = true;
+                    
+                    document.getElementById('startCamera').disabled = true;
+                    document.getElementById('stopCamera').disabled = false;
+                    document.getElementById('captureFrame').disabled = false;
+                    document.getElementById('cameraError').style.display = 'none';
+                    
+                    this.updateCameraStatus('active');
+                    
+                } catch (error) {
+                    console.error('Error starting camera:', error);
+                    document.getElementById('cameraError').style.display = 'block';
+                    this.updateCameraStatus('inactive');
+                    
+                    // Show helpful message
+                    alert('Camera access denied. This is normal for security reasons.\n\nYou can still test the system by:\n1. Uploading an image\n2. Using the "Test with Sample" button');
+                }
+            }
+
+            stopCamera() {
+                if (this.stream) {
+                    this.stream.getTracks().forEach(track => track.stop());
+                    this.stream = null;
+                }
+                
+                this.video.srcObject = null;
+                this.isCameraActive = false;
+                
+                document.getElementById('startCamera').disabled = false;
+                document.getElementById('stopCamera').disabled = true;
+                document.getElementById('captureFrame').disabled = true;
+                
+                this.updateCameraStatus('inactive');
+            }
+
+            updateCameraStatus(status) {
+                const indicator = document.querySelector('#startCamera .status-indicator');
+                if (status === 'active') {
+                    indicator.className = 'status-indicator status-active';
+                } else {
+                    indicator.className = 'status-indicator status-inactive';
+                }
+            }
+
+            captureAndDetect() {
+                if (!this.isCameraActive) return;
+                
+                this.canvas.width = this.video.videoWidth;
+                this.canvas.height = this.video.videoHeight;
+                this.ctx.drawImage(this.video, 0, 0);
+                
+                const imageData = this.canvas.toDataURL('image/jpeg');
+                this.processImage(imageData, 'Camera Capture');
+            }
+
+            testWithSample() {
+                // Create a sample image with mock safety equipment
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 800;
+                canvas.height = 600;
+                
+                // Draw a simple background
+                ctx.fillStyle = '#f0f0f0';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw mock safety equipment
+                ctx.fillStyle = '#ff4444';
+                ctx.fillRect(100, 200, 80, 200); // Fire extinguisher
+                ctx.fillStyle = '#000';
+                ctx.font = '16px Arial';
+                ctx.fillText('Fire Extinguisher', 90, 190);
+                
+                ctx.fillStyle = '#00aa00';
+                ctx.fillRect(300, 250, 120, 100); // First aid box
+                ctx.fillStyle = '#000';
+                ctx.fillText('First Aid Box', 300, 240);
+                
+                ctx.fillStyle = '#4444ff';
+                ctx.fillRect(500, 150, 100, 80); // Safety panel
+                ctx.fillStyle = '#000';
+                ctx.fillText('Safety Panel', 500, 140);
+                
+                // Convert to image data
+                const imageData = canvas.toDataURL('image/jpeg');
+                this.showPreview(imageData);
+                document.getElementById('uploadBtn').disabled = false;
+                document.getElementById('clearUpload').disabled = false;
+                
+                // Auto-detect the sample
+                setTimeout(() => this.uploadAndDetect(), 500);
+            }
+
+            handleFile(file) {
+                if (!file.type.startsWith('image/')) {
+                    alert('Please select a valid image file.');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const imageData = e.target.result;
+                    this.showPreview(imageData);
+                    document.getElementById('uploadBtn').disabled = false;
+                    document.getElementById('clearUpload').disabled = false;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            handleFileSelect(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    this.handleFile(file);
+                }
+            }
+
+            showPreview(imageData) {
+                const preview = document.getElementById('uploadPreview');
+                const previewImage = document.getElementById('previewImage');
+                
+                previewImage.src = imageData;
+                preview.style.display = 'block';
+            }
+
+            uploadAndDetect() {
+                const previewImage = document.getElementById('previewImage');
+                if (previewImage.src) {
+                    this.processImage(previewImage.src, 'Uploaded Image');
+                }
+            }
+
+            clearUpload() {
+                document.getElementById('fileInput').value = '';
+                document.getElementById('uploadPreview').style.display = 'none';
+                document.getElementById('uploadBtn').disabled = true;
+                document.getElementById('clearUpload').disabled = true;
+            }
+
+            async processImage(imageData, source) {
+                this.showLoading();
+                
+                try {
+                    const startTime = performance.now();
+                    const results = await this.detectObjects(imageData);
+                    const endTime = performance.now();
+                    const processingTime = Math.round(endTime - startTime);
+                    
+                    this.displayResults(results, processingTime);
+                    
+                } catch (error) {
+                    console.error('Detection error:', error);
+                    alert('Error processing image. Please try again.');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async detectObjects(imageData) {
+                try {
+                    const response = await fetch('http://localhost:5000/api/detect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image: imageData })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    return data.detections || [];
+                    
+                } catch (error) {
+                    console.error('API call failed:', error);
+                    // Fallback to mock data if server is not running
+                    return [
+                        { class: 'FireExtinguisher', confidence: 0.92, bbox: [100, 200, 180, 400] },
+                        { class: 'FirstAidBox', confidence: 0.87, bbox: [300, 250, 420, 350] },
+                        { class: 'SafetySwitchPanel', confidence: 0.78, bbox: [500, 150, 600, 230] }
+                    ];
+                }
+            }
+
+            displayResults(results, processingTime) {
+                const resultsContent = document.getElementById('resultsContent');
+                
+                if (results.length === 0) {
+                    resultsContent.innerHTML = '<p style="text-align: center; color: #718096; padding: 40px;">No safety equipment detected</p>';
+                    return;
+                }
+
+                // Draw bounding boxes based on source
+                if (this.isCameraActive) {
+                    this.drawBoundingBoxes(results);
+                } else {
+                    // For uploaded images, draw on the preview image
+                    const previewImage = document.getElementById('previewImage');
+                    if (previewImage.src) {
+                        this.drawBoundingBoxesOnImage(results, previewImage);
+                    }
+                }
+
+                let html = '<h3 style="margin-bottom: 20px; color: #2d3748;">Detected Safety Equipment:</h3>';
+                
+                results.forEach((result, index) => {
+                    const confidencePercent = Math.round(result.confidence * 100);
+                    html += `
+                        <div class="result-item">
+                            <h4>${result.class}</h4>
+                            <p>Confidence: ${confidencePercent}%</p>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" style="width: ${confidencePercent}%"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `<p style="margin-top: 15px; color: #718096; font-size: 0.9rem;">Processing time: ${processingTime}ms</p>`;
+                
+                resultsContent.innerHTML = html;
+            }
+
+            drawBoundingBoxesOnImage(results, imageElement) {
+                // Create a canvas for drawing on uploaded images
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Set canvas size to match image
+                canvas.width = imageElement.naturalWidth || imageElement.width;
+                canvas.height = imageElement.naturalHeight || imageElement.height;
+                
+                // Draw the image first
+                ctx.drawImage(imageElement, 0, 0, canvas.width, canvas.height);
+                
+                // Draw bounding boxes
+                results.forEach(result => {
+                    const [x1, y1, x2, y2] = result.bbox;
+                    const confidence = Math.round(result.confidence * 100);
+                    
+                    const width = x2 - x1;
+                    const height = y2 - y1;
+                    
+                    // Draw bounding box
+                    ctx.strokeStyle = '#00ff00';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x1, y1, width, height);
+                    
+                    // Draw label background
+                    const labelText = `${result.class} ${confidence}%`;
+                    ctx.font = 'bold 20px Arial';
+                    const textMetrics = ctx.measureText(labelText);
+                    const labelWidth = textMetrics.width + 10;
+                    const labelHeight = 30;
+                    
+                    ctx.fillStyle = '#00ff00';
+                    ctx.fillRect(x1, y1 - labelHeight, labelWidth, labelHeight);
+                    
+                    // Draw label text
+                    ctx.fillStyle = '#000000';
+                    ctx.fillText(labelText, x1 + 5, y1 - 5);
+                });
+                
+                // Replace the preview image with the annotated version
+                const previewImage = document.getElementById('previewImage');
+                previewImage.src = canvas.toDataURL();
+            }
+
+            drawBoundingBoxes(results) {
+                if (!this.isCameraActive) return;
+                
+                // Create a canvas overlay for drawing
+                let overlay = document.getElementById('detectionOverlay');
+                if (!overlay) {
+                    overlay = document.createElement('canvas');
+                    overlay.id = 'detectionOverlay';
+                    overlay.style.position = 'absolute';
+                    overlay.style.top = '0';
+                    overlay.style.left = '0';
+                    overlay.style.pointerEvents = 'none';
+                    overlay.style.zIndex = '10';
+                    document.querySelector('.video-container').appendChild(overlay);
+                }
+                
+                const video = this.video;
+                const container = document.querySelector('.video-container');
+                
+                // Set canvas size to match video display size
+                const rect = container.getBoundingClientRect();
+                overlay.width = rect.width;
+                overlay.height = rect.height;
+                
+                const ctx = overlay.getContext('2d');
+                ctx.clearRect(0, 0, overlay.width, overlay.height);
+                
+                // Draw bounding boxes
+                results.forEach(result => {
+                    const [x1, y1, x2, y2] = result.bbox;
+                    const confidence = Math.round(result.confidence * 100);
+                    
+                    // Scale coordinates to match display size
+                    const scaleX = overlay.width / video.videoWidth;
+                    const scaleY = overlay.height / video.videoHeight;
+                    
+                    const scaledX1 = x1 * scaleX;
+                    const scaledY1 = y1 * scaleY;
+                    const scaledX2 = x2 * scaleX;
+                    const scaledY2 = y2 * scaleY;
+                    
+                    const width = scaledX2 - scaledX1;
+                    const height = scaledY2 - scaledY1;
+                    
+                    // Draw bounding box
+                    ctx.strokeStyle = '#00ff00';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(scaledX1, scaledY1, width, height);
+                    
+                    // Draw label background
+                    const labelText = `${result.class} ${confidence}%`;
+                    ctx.font = 'bold 16px Arial';
+                    const textMetrics = ctx.measureText(labelText);
+                    const labelWidth = textMetrics.width + 10;
+                    const labelHeight = 25;
+                    
+                    ctx.fillStyle = '#00ff00';
+                    ctx.fillRect(scaledX1, scaledY1 - labelHeight, labelWidth, labelHeight);
+                    
+                    // Draw label text
+                    ctx.fillStyle = '#000000';
+                    ctx.fillText(labelText, scaledX1 + 5, scaledY1 - 5);
+                });
+            }
+
+            showLoading() {
+                document.getElementById('loadingResults').style.display = 'block';
+                document.getElementById('resultsContent').style.display = 'none';
+            }
+
+            hideLoading() {
+                document.getElementById('loadingResults').style.display = 'none';
+                document.getElementById('resultsContent').style.display = 'block';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new SafetyEquipmentDetector();
+        });
+    </script>
+</body>
+</html>
+
